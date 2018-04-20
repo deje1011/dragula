@@ -129,6 +129,10 @@ function dragula (initialContainers, options) {
     if (e.clientX !== void 0 && e.clientX === _moveX && e.clientY !== void 0 && e.clientY === _moveY) {
       return;
     }
+    // Ignore small movements to distinguish drags from clicks
+    if (Math.abs(e.clientX - _moveX) + Math.abs(e.clientY - _moveY) < 15) {
+        return;
+    }
     if (o.ignoreInputTextSelection) {
       var clientX = getCoord('clientX', e);
       var clientY = getCoord('clientY', e);
