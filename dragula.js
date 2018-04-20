@@ -50,7 +50,11 @@ function dragula (initialContainers, options) {
     remove: remove,
     destroy: destroy,
     canMove: canMove,
-    dragging: false
+    dragging: false,
+
+    // expose grab and ungrad (needed for a hack used in zenkit to make it work on mobile)
+    grab: grab,
+    ungrab: ungrab,
   });
 
   if (o.removeOnSpill === true) {
