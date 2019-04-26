@@ -5,6 +5,7 @@ var crossvent = require('crossvent');
 var classes = require('./classes');
 var doc = document;
 var documentElement = doc.documentElement;
+var oldCoord = 0;
 
 function dragula (initialContainers, options) {
   var len = arguments.length;
@@ -42,6 +43,7 @@ function dragula (initialContainers, options) {
   if (o.direction === void 0) { o.direction = 'vertical'; }
   if (o.ignoreInputTextSelection === void 0) { o.ignoreInputTextSelection = true; }
   if (o.mirrorContainer === void 0) { o.mirrorContainer = doc.body; }
+  if (o.animationDuration === void 0) { o.animationDuration = 0; }
 
   var drake = emitter({
     containers: o.containers,
@@ -387,6 +389,29 @@ function dragula (initialContainers, options) {
     }
   }
 
+  // Copied from the source code of https://www.npmjs.com/package/dragula-with-animation
+  // --- start ---
+  function animate (prevRect, target, time) {
+    if (time) {
+      if (!prevRect || !target) {
+        return;
+      }
+      var currentRect = target.getBoundingClientRect();
+      target.style.transition = 'none';
+      target.style.transform = 'translate3d(' + (prevRect.left - currentRect.left) + 'px,' + (prevRect.top - currentRect.top) + 'px,0)';
+      target.offsetWidth; // repaint
+      target.style.transition = 'all ' + time + 'ms';
+      target.style.transform = 'translate3d(0,0,0)';
+      clearTimeout(target.animated);
+      target.animated = setTimeout(function () {
+        target.style.transition = '';
+        target.style.transform = '';
+        target.animated = false;
+      }, time);
+    }
+  }
+  // --- end ---
+
   function drag (e) {
     if (!_mirror) {
       return;
@@ -452,7 +477,35 @@ function dragula (initialContainers, options) {
       reference !== nextEl(item)
     ) {
       _currentSibling = reference;
+      
+      // Copied from the source code of https://www.npmjs.com/package/dragula-with-animation
+      // --- start ---
+      var isBrother = item.parentElement === dropTarget;
+      var shouldAnimate = isBrother && o.animationDuration > 0;
+      var itemRect = item.getBoundingClientRect();
+      var direct = o.direction;
+      var mover;
+      var nowCord = direct === 'horizontal' ? e.pageX : e.pageY;
+      if (nowCord < oldCoord) {
+        mover = reference; //upward or right
+      } else {
+        mover = reference ? (reference.previousElementSibling ? reference.previousElementSibling : reference) : dropTarget.lastElementChild;
+      }
+      oldCoord = nowCord;
+      if (!mover) {
+        return;
+      }
+      if (o.staticClass && mover.classList.contains(o.staticClass)) {
+        return;
+      }
+      var moverRect = mover && mover.getBoundingClientRect();
       dropTarget.insertBefore(item, reference);
+      if (shouldAnimate && mover && moverRect) {
+        animate(moverRect, mover, o.animationDuration);
+        animate(itemRect, item, o.animationDuration);
+      }
+      // --- end ---
+      
       drake.emit('shadow', item, dropTarget, _source);
     }
 
