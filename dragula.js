@@ -482,23 +482,27 @@ function dragula (initialContainers, options) {
       // --- start ---
       var isBrother = item.parentElement === dropTarget;
       var shouldAnimate = isBrother && o.animationDuration > 0;
-      var itemRect = item.getBoundingClientRect();
-      var direct = o.direction;
+      var itemRect;
       var mover;
-      var nowCord = direct === 'horizontal' ? e.pageX : e.pageY;
-      if (nowCord < oldCoord) {
-        mover = reference; //upward or right
-      } else {
-        mover = reference ? (reference.previousElementSibling ? reference.previousElementSibling : reference) : dropTarget.lastElementChild;
+      var nowCord;
+      var moverRect;
+      if (shouldAnimate) {
+        itemRect = item.getBoundingClientRect();
+        nowCord = o.direction === 'horizontal' ? e.pageX : e.pageY;
+        if (nowCord < oldCoord) {
+          mover = reference; //upward or right
+        } else {
+          mover = reference ? (reference.previousElementSibling ? reference.previousElementSibling : reference) : dropTarget.lastElementChild;
+        }
+        oldCoord = nowCord;
+        if (!mover) {
+          return;
+        }
+        if (o.staticClass && mover.classList.contains(o.staticClass)) {
+          return;
+        }
+        moverRect = mover && mover.getBoundingClientRect();
       }
-      oldCoord = nowCord;
-      if (!mover) {
-        return;
-      }
-      if (o.staticClass && mover.classList.contains(o.staticClass)) {
-        return;
-      }
-      var moverRect = mover && mover.getBoundingClientRect();
       dropTarget.insertBefore(item, reference);
       if (shouldAnimate && mover && moverRect) {
         animate(moverRect, mover, o.animationDuration);
