@@ -227,6 +227,15 @@ function dragula (initialContainers, options) {
     _item = context.item;
     _initialSibling = _currentSibling = nextEl(context.item);
 
+    /*
+      Zenkit Change:
+      On iOS, holding down a finger while an input element has focus triggers the "magnifying glass" feature.
+      So we blur any focused elements on dragstart.
+    */
+    if (document.activeElement) {
+      document.activeElement.blur();
+    }
+
     drake.dragging = true;
     drake.emit('drag', _item, _source);
   }
