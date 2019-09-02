@@ -19,7 +19,7 @@ function dragula (initialContainers, options) {
   var _offsetY; // reference y
   var _moveX; // reference move x
   var _moveY; // reference move y
-  var _initialPos; // reference position for axis
+  var _positionForRestrictedAxis; // reference position for axis
   var _initialSibling; // reference sibling when grabbed
   var _currentSibling; // reference sibling now
   var _copy; // item used for copying
@@ -156,14 +156,10 @@ function dragula (initialContainers, options) {
     _offsetX = getCoord('pageX', e) - offset.left;
     _offsetY = getCoord('pageY', e) - offset.top;
 
-    switch (o.axis) {
-      case 'x':
-        _initialPos = offset.top;
-        break;
-      case 'y':
-        _initialPos = offset.left;
-        break;
-    }
+    _positionForRestrictedAxis = {
+      x: offset.left,
+      y: offset.top
+    };
 
     classes.add(_copy || _item, 'gu-transit');
     renderMirrorImage();
@@ -393,13 +389,12 @@ function dragula (initialContainers, options) {
     var x = clientX - _offsetX;
     var y = clientY - _offsetY;
 
-    _mirror.style.left = (/y/.test(o.axis) && _initialPos !== undefined ? _initialPos : x) + 'px';
-    _mirror.style.top = (/x/.test(o.axis) && _initialPos !== undefined ? _initialPos : y) + 'px';
-
     var item = _copy || _item;
     var elementBehindCursor = getElementBehindPoint(_mirror, clientX, clientY);
     var dropTarget = findDropTarget(elementBehindCursor, clientX, clientY);
     var changed = dropTarget !== null && dropTarget !== _lastDropTarget;
+    var movedBetweenContainers = changed && _lastDropTarget;
+
     if (changed || dropTarget === null) {
       out();
       _lastDropTarget = dropTarget;
@@ -434,6 +429,36 @@ function dragula (initialContainers, options) {
       dropTarget.insertBefore(item, reference);
       drake.emit('shadow', item, dropTarget, _source);
     }
+
+    var restrictedToYAxis = o.axis === 'y';
+    var restrictedToXAxis = o.axis === 'x';
+
+    /*
+      When dragging is restricted to one axis and the mirror is dragged into another container,
+      we need to adjust the position of the mirror. Otherwise it would stick to the initial
+      container on the restricted axis.
+    */
+    if (movedBetweenContainers && (restrictedToYAxis || restrictedToXAxis)) {
+      var rect = dropTarget.getBoundingClientRect();
+      _positionForRestrictedAxis = {
+        x: rect.left,
+        y: rect.top
+      };
+      _mirror.style.width = rect.width + 'px';
+    }
+
+    var left = x;
+    var top = y;
+
+    if (restrictedToYAxis && _positionForRestrictedAxis.x !== undefined) {
+      left = _positionForRestrictedAxis.x;
+    } else if (restrictedToXAxis && _positionForRestrictedAxis.y !== undefined) {
+      top = _positionForRestrictedAxis.y;
+    }
+
+    _mirror.style.left = left + 'px';
+    _mirror.style.top = top + 'px';
+
     function moved (type) { drake.emit(type, item, _lastDropTarget, _source); }
     function over () { if (changed) { moved('over'); } }
     function out () { if (_lastDropTarget) { moved('out'); } }
