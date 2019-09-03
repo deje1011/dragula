@@ -22,6 +22,7 @@ function dragula (initialContainers, options) {
   var _positionForRestrictedAxis; // reference position for axis
   var _initialSibling; // reference sibling when grabbed
   var _currentSibling; // reference sibling now
+  var _currentParent; // reference current parent 
   var _copy; // item used for copying
   var _renderTimer; // timer for setTimeout renderMirrorImage
   var _lastDropTarget = null; // last container item was over
@@ -340,7 +341,15 @@ function dragula (initialContainers, options) {
       drake.emit('out', item, _lastDropTarget, _source);
     }
     drake.emit('dragend', item);
-    _source = _item = _copy = _initialSibling = _currentSibling = _renderTimer = _lastDropTarget = null;
+    _source = null;
+    _item = null;
+    _copy = null;
+    _initialSibling = null;
+    _currentSibling = null;
+    _currentParent = null;
+    _renderTimer = null;
+    _lastDropTarget = null;
+    _positionForRestrictedAxis = null;
   }
 
   function isInitialPlacement (target, s) {
@@ -393,20 +402,24 @@ function dragula (initialContainers, options) {
     var elementBehindCursor = getElementBehindPoint(_mirror, clientX, clientY);
     var dropTarget = findDropTarget(elementBehindCursor, clientX, clientY);
     var changed = dropTarget !== null && dropTarget !== _lastDropTarget;
-    var movedBetweenContainers = changed && _lastDropTarget;
 
     if (changed || dropTarget === null) {
       out();
       _lastDropTarget = dropTarget;
       over();
     }
+
     var parent = getParent(item);
+    var movedBetweenContainers = Boolean(_currentParent) && _currentParent !== parent;
+    _currentParent = parent;
+
     if (dropTarget === _source && _copy && !o.copySortSource) {
       if (parent) {
         parent.removeChild(item);
       }
       return;
     }
+
     var reference;
     var immediate = getImmediateChild(dropTarget, elementBehindCursor);
     if (immediate !== null) {
