@@ -22,7 +22,7 @@ function dragula (initialContainers, options) {
   var _positionForRestrictedAxis; // reference position for axis
   var _initialSibling; // reference sibling when grabbed
   var _currentSibling; // reference sibling now
-  var _currentParent; // reference current parent 
+  var _currentParent; // reference current parent
   var _copy; // item used for copying
   var _renderTimer; // timer for setTimeout renderMirrorImage
   var _lastDropTarget = null; // last container item was over
@@ -420,6 +420,11 @@ function dragula (initialContainers, options) {
       return;
     }
 
+    var restrictedToYAxis = o.axis === 'y';
+    var restrictedToXAxis = o.axis === 'x';
+    var left = x;
+    var top = y;
+
     var reference;
     var immediate = getImmediateChild(dropTarget, elementBehindCursor);
     if (immediate !== null) {
@@ -430,6 +435,14 @@ function dragula (initialContainers, options) {
     } else {
       if (_copy && parent) {
         parent.removeChild(item);
+      }
+      // Note: At this point, the cursor is not above a container.
+      // We want the mirror to move along with the mouse anyway.
+      if (restrictedToYAxis === false) {
+        _mirror.style.left = left + 'px';
+      }
+      if (restrictedToXAxis === false) {
+        _mirror.style.top = top + 'px';
       }
       return;
     }
@@ -442,9 +455,6 @@ function dragula (initialContainers, options) {
       dropTarget.insertBefore(item, reference);
       drake.emit('shadow', item, dropTarget, _source);
     }
-
-    var restrictedToYAxis = o.axis === 'y';
-    var restrictedToXAxis = o.axis === 'x';
 
     /*
       When dragging is restricted to one axis and the mirror is dragged into another container,
@@ -459,9 +469,6 @@ function dragula (initialContainers, options) {
       };
       _mirror.style.width = rect.width + 'px';
     }
-
-    var left = x;
-    var top = y;
 
     if (restrictedToYAxis && _positionForRestrictedAxis.x !== undefined) {
       left = _positionForRestrictedAxis.x;
