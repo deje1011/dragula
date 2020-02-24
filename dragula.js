@@ -389,8 +389,9 @@ function dragula (initialContainers, options) {
     }
   }
 
-  // Copied from the source code of https://www.npmjs.com/package/dragula-with-animation
-  // --- start ---
+  // Mostly copied from the source code of https://www.npmjs.com/package/dragula-with-animation
+  // https://github.com/bevacqua/dragula/pull/450/commits/e9be6df51de6ad042a680b1fb9fec16d483f244d
+  // --- start #animationDuration ---
   function animate (prevRect, target, time) {
     if (time) {
       if (!prevRect || !target) {
@@ -402,15 +403,19 @@ function dragula (initialContainers, options) {
       target.offsetWidth; // repaint
       target.style.transition = 'all ' + time + 'ms';
       target.style.transform = 'translate3d(0,0,0)';
-      clearTimeout(target.animated);
-      target.animated = setTimeout(function () {
+      if (target.dragulaAnimationTimeout !== undefined) {
+        clearTimeout(target.dragulaAnimationTimeout);
+      }
+      // Note: We are setting a custom property on a DOM element here, which feels pretty hacky.
+      // Alternatives like using target.dataset or a WeakMap are not supported in all browsers though.
+      target.dragulaAnimationTimeout = setTimeout(function () {
         target.style.transition = '';
         target.style.transform = '';
-        target.animated = false;
+        target.dragulaAnimationTimeout = undefined;
       }, time);
     }
   }
-  // --- end ---
+  // --- end #animationDuration ---
 
   function drag (e) {
     if (!_mirror) {
@@ -477,9 +482,8 @@ function dragula (initialContainers, options) {
       reference !== nextEl(item)
     ) {
       _currentSibling = reference;
-      
-      // Copied from the source code of https://www.npmjs.com/package/dragula-with-animation
-      // --- start ---
+
+      // --- start #animationDuration ---
       var isBrother = item.parentElement === dropTarget;
       var shouldAnimate = isBrother && o.animationDuration > 0;
       var itemRect;
@@ -498,18 +502,19 @@ function dragula (initialContainers, options) {
         if (!mover) {
           return;
         }
-        if (o.staticClass && mover.classList.contains(o.staticClass)) {
-          return;
-        }
         moverRect = mover && mover.getBoundingClientRect();
       }
+      // --- end #animationDuration ---
+
       dropTarget.insertBefore(item, reference);
+
+      // --- start #animationDuration ---
       if (shouldAnimate && mover && moverRect) {
         animate(moverRect, mover, o.animationDuration);
         animate(itemRect, item, o.animationDuration);
       }
-      // --- end ---
-      
+      // --- end #animationDuration ---
+
       drake.emit('shadow', item, dropTarget, _source);
     }
 
