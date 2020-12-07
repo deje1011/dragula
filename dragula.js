@@ -29,6 +29,10 @@ function dragula (initialContainers, options) {
   var _lastDropTarget = null; // last container item was over
   var _grabbed; // holds mousedown context until first mousemove
 
+  var _touchstartTime;
+  var _touchstartX;
+  var _touchstartY;
+
   var o = options || {};
   if (o.axis === void 0) { o.axis = 'none'; }
   if (o.moves === void 0) { o.moves = always; }
@@ -44,6 +48,8 @@ function dragula (initialContainers, options) {
   if (o.ignoreInputTextSelection === void 0) { o.ignoreInputTextSelection = true; }
   if (o.mirrorContainer === void 0) { o.mirrorContainer = doc.body; }
   if (o.animationDuration === void 0) { o.animationDuration = 0; }
+  if (o.scrollThesholdOnTouchDevices === void 0) { o.scrollThesholdOnTouchDevices = 10; }
+  if (o.scrollDetectionTimeoutOnTouchDevices === void 0) { o.scrollDetectionTimeoutOnTouchDevices = 500; }
 
   var drake = emitter({
     containers: o.containers,
@@ -74,7 +80,7 @@ function dragula (initialContainers, options) {
 
   function events (remove) {
     var op = remove ? 'remove' : 'add';
-    touchy(documentElement, op, 'mousedown', grab);
+    touchy(documentElement, op, 'mousedown', onMousedown);
     touchy(documentElement, op, 'mouseup', release);
   }
 
@@ -87,6 +93,12 @@ function dragula (initialContainers, options) {
     var op = remove ? 'remove' : 'add';
     crossvent[op](documentElement, 'selectstart', preventGrabbed); // IE8
     crossvent[op](documentElement, 'click', preventGrabbed);
+    crossvent[op](documentElement, 'contextmenu'); // On Android, a long touch will open the contextmenu
+  }
+
+  function touchMovementsToDistinguishBetweenScrollAndDrag (remove) {
+      var op = remove ? 'remove' : 'add';
+      touchy(documentElement, op, 'mousemove', grabIfUserDoesntStartScrolling);
   }
 
   function destroy () {
@@ -98,6 +110,55 @@ function dragula (initialContainers, options) {
     if (_grabbed) {
       e.preventDefault();
     }
+  }
+
+  function onMousedown (e) {
+    /*
+      For a mousedown event, we can start the drag immediately.
+    */
+    if (e.type === 'mousedown' || o.scrollThesholdOnTouchDevices === 0) {
+      grab(e);
+      return;
+    }
+    /*
+      On a touchscreen, the user might intend to scroll rather than drag.
+      So we wait to see if the movement looks more like a scroll or an intentional drag.
+      Note: In browsers that would usually open the contextmenu on "long touch",
+      we need to wait for the fist touch move after the timeout. So instead of starting
+      a timer here, we just listen for mousemove events and remember the time of the touchstart.
+    */
+    touchMovementsToDistinguishBetweenScrollAndDrag();
+    _touchstartTime = (new Date()).getTime();
+    _touchstartX = getCoord('clientX', e);
+    _touchstartY = getCoord('clientY', e);
+  }
+
+  function cleanUpDistinctionBetweenScrollAndDrag () {
+    touchMovementsToDistinguishBetweenScrollAndDrag(true);
+    _touchstartTime = undefined;
+    _touchstartX = undefined;
+    _touchstartY = undefined;
+  }
+
+  function grabIfUserDoesntStartScrolling (e) {
+    var x = getCoord('clientX', e);
+    var y = getCoord('clientY', e);
+    var deltaX = Math.abs(_touchstartX - x);
+    var deltaY = Math.abs(_touchstartY - y);
+    var theshold = o.scrollThesholdOnTouchDevices;
+    if (deltaX > theshold || deltaY > theshold) {
+      // The user is probably trying to scroll. Abort dragging.
+      cleanUpDistinctionBetweenScrollAndDrag(true);
+      return;
+    }
+
+    // Give the user some time to initiate scrolling
+    var time = (new Date()).getTime();
+    if (time - _touchstartTime < o.scrollDetectionTimeoutOnTouchDevices) {
+      return;
+    }
+
+    grab(e);
   }
 
   function grab (e) {
@@ -255,6 +316,7 @@ function dragula (initialContainers, options) {
     _grabbed = false;
     eventualMovements(true);
     movements(true);
+    cleanUpDistinctionBetweenScrollAndDrag();
   }
 
   function release (e) {
