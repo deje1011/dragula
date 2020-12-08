@@ -48,7 +48,7 @@ function dragula (initialContainers, options) {
   if (o.ignoreInputTextSelection === void 0) { o.ignoreInputTextSelection = true; }
   if (o.mirrorContainer === void 0) { o.mirrorContainer = doc.body; }
   if (o.animationDuration === void 0) { o.animationDuration = 0; }
-  if (o.scrollThesholdOnTouchDevices === void 0) { o.scrollThesholdOnTouchDevices = 10; }
+  if (o.scrollThesholdOnTouchDevices === void 0) { o.scrollThesholdOnTouchDevices = 30; } // 10 was not enough on ms surface, drag was always aborted
   if (o.scrollDetectionTimeoutOnTouchDevices === void 0) { o.scrollDetectionTimeoutOnTouchDevices = 500; }
 
   var drake = emitter({
@@ -93,7 +93,7 @@ function dragula (initialContainers, options) {
     var op = remove ? 'remove' : 'add';
     crossvent[op](documentElement, 'selectstart', preventGrabbed); // IE8
     crossvent[op](documentElement, 'click', preventGrabbed);
-    crossvent[op](documentElement, 'contextmenu'); // On Android, a long touch will open the contextmenu
+    crossvent[op](documentElement, 'contextmenu', preventGrabbed); // On Android, a long touch will open the contextmenu
   }
 
   function touchMovementsToDistinguishBetweenScrollAndDrag (remove) {
@@ -113,6 +113,15 @@ function dragula (initialContainers, options) {
   }
 
   function onMousedown (e) {
+    /*
+      On devices that support both touch and mouse events, onMousedown may be called twice.
+      Once for a touchstart event and possibly once again for a mousedown event.
+      The touch event will cause _touchstartTime to be set, so we can ignore events here until
+      it is reset to undefined in cleanUpDistinctionBetweenScrollAndDrag.
+    */
+    if (_touchstartTime) {
+      return;
+    }
     /*
       For a mousedown event, we can start the drag immediately.
     */
@@ -135,7 +144,7 @@ function dragula (initialContainers, options) {
 
   function cleanUpDistinctionBetweenScrollAndDrag () {
     touchMovementsToDistinguishBetweenScrollAndDrag(true);
-    _touchstartTime = undefined;
+    _touchstartTime = undefined; // Important for check in onMousedown
     _touchstartX = undefined;
     _touchstartY = undefined;
   }
@@ -158,6 +167,7 @@ function dragula (initialContainers, options) {
       return;
     }
 
+    cleanUpDistinctionBetweenScrollAndDrag(true);
     grab(e);
   }
 
