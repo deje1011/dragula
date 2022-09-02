@@ -634,6 +634,11 @@ function dragula (initialContainers, options) {
     _mirror = _item.cloneNode(true);
     _mirror.style.width = getRectWidth(rect) + 'px';
     _mirror.style.height = getRectHeight(rect) + 'px';
+
+    // Needed here initially because drag() might only set either of left or top (if o.axis is set)
+    _mirror.style.left = rect.left + 'px';
+    _mirror.style.top = rect.top + 'px';
+
     classes.rm(_mirror, 'gu-transit');
     classes.add(_mirror, 'gu-mirror');
     o.mirrorContainer.appendChild(_mirror);
