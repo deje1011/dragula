@@ -18,8 +18,8 @@ function dragula (initialContainers, options) {
   var _item; // item being dragged
   var _offsetX; // reference x
   var _offsetY; // reference y
-  var _moveX; // reference move x
-  var _moveY; // reference move y
+  var _grabbedAtClientX; // called _moveX in the original source code
+  var _grabbedAtClientY; // called _moveX in the original source code
   var _positionForRestrictedAxis; // reference position for axis
   var _initialSibling; // reference sibling when grabbed
   var _currentSibling; // reference sibling now
@@ -29,9 +29,7 @@ function dragula (initialContainers, options) {
   var _lastDropTarget = null; // last container item was over
   var _grabbed; // holds mousedown context until first mousemove
 
-  var _touchstartTime;
-  var _touchstartX;
-  var _touchstartY;
+  var _touchDragTimeout;
 
   var o = options || {};
   if (o.axis === void 0) { o.axis = 'none'; }
@@ -82,25 +80,35 @@ function dragula (initialContainers, options) {
 
   function events (remove) {
     var op = remove ? 'remove' : 'add';
-    touchy(documentElement, op, 'mousedown', onMousedown);
+    touchy(documentElement, op, 'mousedown', grab);
     touchy(documentElement, op, 'mouseup', release);
   }
 
-  function eventualMovements (remove) {
-    var op = remove ? 'remove' : 'add';
-    touchy(documentElement, op, 'mousemove', startBecauseMouseMoved);
+  function setupEventualMovements (startEvent) {
+    if (startEvent.type === 'mousedown') {
+      touchy(documentElement, 'add', 'mousemove', startIfMouseMoved);
+    } else {
+      _touchDragTimeout = setTimeout(function () {
+        startDraggingGrabbed(startEvent, _grabbed);
+      }, o.scrollDetectionTimeoutOnTouchDevices);
+      touchy(documentElement, 'add', 'mousemove', abortIfFingerMoved);
+    }
   }
 
-  function movements (remove) {
+  function cleanupEventualMovements () {
+    touchy(documentElement, 'remove', 'mousemove', startIfMouseMoved);
+    touchy(documentElement, 'remove', 'mousemove', abortIfFingerMoved);
+    if (_touchDragTimeout) {
+      clearTimeout(_touchDragTimeout);
+      _touchDragTimeout = undefined;
+    }
+  }
+
+  function preventGrabbedEvents (remove) {
     var op = remove ? 'remove' : 'add';
     crossvent[op](documentElement, 'selectstart', preventGrabbed); // IE8
     crossvent[op](documentElement, 'click', preventGrabbed);
     crossvent[op](documentElement, 'contextmenu', preventGrabbed); // On Android, a long touch will open the contextmenu
-  }
-
-  function touchMovementsToDistinguishBetweenScrollAndDrag (remove) {
-      var op = remove ? 'remove' : 'add';
-      touchy(documentElement, op, 'mousemove', grabIfUserDoesntStartScrolling);
   }
 
   function destroy () {
@@ -114,68 +122,11 @@ function dragula (initialContainers, options) {
     }
   }
 
-  function onMousedown (e) {
-    /*
-      On devices that support both touch and mouse events, onMousedown may be called twice.
-      Once for a touchstart event and possibly once again for a mousedown event.
-      The touch event will cause _touchstartTime to be set, so we can ignore events here until
-      it is reset to undefined in cleanUpDistinctionBetweenScrollAndDrag.
-    */
-    if (_touchstartTime) {
-      return;
-    }
-    /*
-      For a mousedown event, we can start the drag immediately.
-    */
-    if (e.type === 'mousedown' || o.scrollThesholdOnTouchDevices === 0) {
-      grab(e);
-      return;
-    }
-    /*
-      On a touchscreen, the user might intend to scroll rather than drag.
-      So we wait to see if the movement looks more like a scroll or an intentional drag.
-      Note: In browsers that would usually open the contextmenu on "long touch",
-      we need to wait for the fist touch move after the timeout. So instead of starting
-      a timer here, we just listen for mousemove events and remember the time of the touchstart.
-    */
-    touchMovementsToDistinguishBetweenScrollAndDrag();
-    _touchstartTime = (new Date()).getTime();
-    _touchstartX = getCoord('clientX', e);
-    _touchstartY = getCoord('clientY', e);
-  }
-
-  function cleanUpDistinctionBetweenScrollAndDrag () {
-    touchMovementsToDistinguishBetweenScrollAndDrag(true);
-    _touchstartTime = undefined; // Important for check in onMousedown
-    _touchstartX = undefined;
-    _touchstartY = undefined;
-  }
-
-  function grabIfUserDoesntStartScrolling (e) {
-    var x = getCoord('clientX', e);
-    var y = getCoord('clientY', e);
-    var deltaX = Math.abs(_touchstartX - x);
-    var deltaY = Math.abs(_touchstartY - y);
-    var theshold = o.scrollThesholdOnTouchDevices;
-    if (deltaX > theshold || deltaY > theshold) {
-      // The user is probably trying to scroll. Abort dragging.
-      cleanUpDistinctionBetweenScrollAndDrag(true);
-      return;
-    }
-
-    // Give the user some time to initiate scrolling
-    var time = (new Date()).getTime();
-    if (time - _touchstartTime < o.scrollDetectionTimeoutOnTouchDevices) {
-      return;
-    }
-
-    cleanUpDistinctionBetweenScrollAndDrag(true);
-    grab(e);
-  }
-
   function grab (e) {
-    _moveX = e.clientX;
-    _moveY = e.clientY;
+    var clientX = getCoord('clientX', e);
+    var clientY = getCoord('clientY', e);
+    _grabbedAtClientX = clientX;
+    _grabbedAtClientY = clientY;
 
     var ignore = whichMouseButton(e) !== 1 || e.metaKey || e.ctrlKey;
     if (ignore) {
@@ -186,8 +137,11 @@ function dragula (initialContainers, options) {
     if (!context) {
       return;
     }
+
     _grabbed = context;
-    eventualMovements();
+
+    setupEventualMovements(e);
+
     if (e.type === 'mousedown') {
       if (isInput(item)) { // see also: https://github.com/bevacqua/dragula/issues/208
         item.focus(); // fixes https://github.com/bevacqua/dragula/issues/176
@@ -197,34 +151,9 @@ function dragula (initialContainers, options) {
     }
   }
 
-  function startBecauseMouseMoved (e) {
-    if (!_grabbed) {
-      return;
-    }
-    if (whichMouseButton(e) === 0) {
-      release({});
-      return; // when text is selected on an input and then dragged, mouseup doesn't fire. this is our only hope
-    }
-    // truthy check fixes #239, equality fixes #207, fixes #501
-    if ((e.clientX !== void 0 && Math.abs(e.clientX - _moveX) <= (o.slideFactorX)) &&
-      (e.clientY !== void 0 && Math.abs(e.clientY - _moveY) <= (o.slideFactorY))) {
-      return;
-    }
-    if (e.clientX !== void 0 && e.clientX === _moveX && e.clientY !== void 0 && e.clientY === _moveY) {
-      return;
-    }
-    if (o.ignoreInputTextSelection) {
-      var clientX = getCoord('clientX', e);
-      var clientY = getCoord('clientY', e);
-      var elementBehindCursor = doc.elementFromPoint(clientX, clientY);
-      if (isInput(elementBehindCursor)) {
-        return;
-      }
-    }
-
-    var grabbed = _grabbed; // call to end() unsets _grabbed
-    eventualMovements(true);
-    movements();
+  function startDraggingGrabbed (e, grabbed) {
+    cleanupEventualMovements();
+    preventGrabbedEvents();
     end();
     start(grabbed);
 
@@ -240,6 +169,54 @@ function dragula (initialContainers, options) {
     classes.add(_copy || _item, 'gu-transit');
     renderMirrorImage();
     drag(e);
+  }
+
+
+  /*
+    When using a mouse, we want to start the drag when the cursor moves a bit after mousedown.
+    => startIfMouseMoved
+
+    When using a touchscreen, it's the other way around:
+    We want to start the drag when the finger hasn't moved for a bit after touchstart
+    (because immediate movement probably means the user wants to scroll or swipe).
+    => abortIfFingerMoved
+  */
+
+  function startIfMouseMoved (e) {
+    if (!_grabbed) {
+      return;
+    }
+    if (whichMouseButton(e) === 0) {
+      release({});
+      return; // when text is selected on an input and then dragged, mouseup doesn't fire. this is our only hope
+    }
+    // truthy check fixes #239, equality fixes #207, fixes #501
+    if ((e.clientX !== void 0 && Math.abs(e.clientX - _grabbedAtClientX) <= (o.slideFactorX)) &&
+      (e.clientY !== void 0 && Math.abs(e.clientY - _grabbedAtClientY) <= (o.slideFactorY))) {
+      return;
+    }
+    if (e.clientX !== void 0 && e.clientX === _grabbedAtClientX && e.clientY !== void 0 && e.clientY === _grabbedAtClientY) {
+      return;
+    }
+    if (o.ignoreInputTextSelection) {
+      var clientX = getCoord('clientX', e);
+      var clientY = getCoord('clientY', e);
+      var elementBehindCursor = doc.elementFromPoint(clientX, clientY);
+      if (isInput(elementBehindCursor)) {
+        return;
+      }
+    }
+    startDraggingGrabbed(e, _grabbed);
+  }
+
+  function abortIfFingerMoved (e) {
+    var clientX = getCoord('clientX', e);
+    var clientY = getCoord('clientY', e);
+    var deltaX = Math.abs(_grabbedAtClientX - clientX);
+    var deltaY = Math.abs(_grabbedAtClientY - clientY);
+    if (deltaX > o.scrollThesholdOnTouchDevices || deltaY > o.scrollThesholdOnTouchDevices) {
+      cleanupEventualMovements();
+    }
   }
 
   function canStart (item) {
@@ -326,9 +303,8 @@ function dragula (initialContainers, options) {
 
   function ungrab () {
     _grabbed = false;
-    eventualMovements(true);
-    movements(true);
-    cleanUpDistinctionBetweenScrollAndDrag();
+    cleanupEventualMovements();
+    preventGrabbedEvents(true);
   }
 
   function release (e) {
