@@ -50,6 +50,8 @@ function dragula (initialContainers, options) {
   if (o.animationDuration === void 0) { o.animationDuration = 0; }
   if (o.scrollThesholdOnTouchDevices === void 0) { o.scrollThesholdOnTouchDevices = 30; } // 10 was not enough on ms surface, drag was always aborted
   if (o.scrollDetectionTimeoutOnTouchDevices === void 0) { o.scrollDetectionTimeoutOnTouchDevices = 500; }
+  if (o.slideFactorX === void 0) { o.slideFactorX = 5; }
+  if (o.slideFactorY === void 0) { o.slideFactorY = 5; }
 
   var drake = emitter({
     containers: o.containers,
@@ -203,13 +205,13 @@ function dragula (initialContainers, options) {
       release({});
       return; // when text is selected on an input and then dragged, mouseup doesn't fire. this is our only hope
     }
-    // truthy check fixes #239, equality fixes #207
-    if (e.clientX !== void 0 && e.clientX === _moveX && e.clientY !== void 0 && e.clientY === _moveY) {
+    // truthy check fixes #239, equality fixes #207, fixes #501
+    if ((e.clientX !== void 0 && Math.abs(e.clientX - _moveX) <= (o.slideFactorX)) &&
+      (e.clientY !== void 0 && Math.abs(e.clientY - _moveY) <= (o.slideFactorY))) {
       return;
     }
-    // Ignore small movements to distinguish drags from clicks
-    if (Math.abs(e.clientX - _moveX) + Math.abs(e.clientY - _moveY) < 15) {
-        return;
+    if (e.clientX !== void 0 && e.clientX === _moveX && e.clientY !== void 0 && e.clientY === _moveY) {
+      return;
     }
     if (o.ignoreInputTextSelection) {
       var clientX = getCoord('clientX', e);
