@@ -46,7 +46,7 @@ function dragula (initialContainers, options) {
   if (o.ignoreInputTextSelection === void 0) { o.ignoreInputTextSelection = true; }
   if (o.mirrorContainer === void 0) { o.mirrorContainer = doc.body; }
   if (o.animationDuration === void 0) { o.animationDuration = 0; }
-  if (o.scrollThesholdOnTouchDevices === void 0) { o.scrollThesholdOnTouchDevices = 30; } // 10 was not enough on ms surface, drag was always aborted
+  if (o.scrollThesholdOnTouchDevices === void 0) { o.scrollThesholdOnTouchDevices = 5; }
   if (o.scrollDetectionTimeoutOnTouchDevices === void 0) { o.scrollDetectionTimeoutOnTouchDevices = 500; }
   if (o.slideFactorX === void 0) { o.slideFactorX = 5; }
   if (o.slideFactorY === void 0) { o.slideFactorY = 5; }
