@@ -355,6 +355,9 @@ function dragula (initialContainers, options) {
 
   function cancel (revert) {
     if (!drake.dragging) {
+      // even if the drag hasn't started yet,
+      // we need cleanupEventualMovements to be called
+      cleanup();
       return;
     }
     var reverts = arguments.length > 0 ? revert : o.revertOnSpill;
