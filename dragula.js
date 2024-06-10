@@ -391,11 +391,13 @@ function dragula (initialContainers, options) {
     if (_renderTimer) {
       clearTimeout(_renderTimer);
     }
-    drake.dragging = false;
-    if (_lastDropTarget) {
-      drake.emit('out', item, _lastDropTarget, _source);
+    if (drake.dragging) {
+      drake.dragging = false;
+      if (_lastDropTarget) {
+        drake.emit('out', item, _lastDropTarget, _source);
+      }
+      drake.emit('dragend', item);
     }
-    drake.emit('dragend', item);
     _source = null;
     _item = null;
     _copy = null;
